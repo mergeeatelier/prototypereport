@@ -359,7 +359,7 @@ textarea{resize:vertical;min-height:72px}
 </div><!-- /form-body -->
 
 <div class="submit-row">
-  <button class="btn-secondary" onclick="clearRoundFields()">ล้างฟอร์ม</button>
+  <button class="btn-secondary" onclick="clearCurrentFields()">ล้างฟอร์ม</button>
   <button class="btn-primary" id="submit-btn" onclick="submitForm()">บันทึก Round 1</button>
   <span class="submit-note" id="submit-status"></span>
 </div>
@@ -654,6 +654,19 @@ function afterSuccess() {
   document.getElementById('submit-status').textContent = '';
   sigPad.clear();
   document.querySelector('[name="signed_by"]').value = '';
+}
+
+function clearCurrentFields() {
+  if (currentMode === 'completion') clearCompletionFields();
+  else clearRoundFields();
+}
+
+function clearCompletionFields() {
+  ['scope_summary','deliverables','width','length','height','diameter','weight',
+   'materials','colors','finish','standards','notes','signed_by','mergee_signed_by']
+    .forEach(n => { const el = document.querySelector('[name="'+n+'"]'); if (el) el.value = ''; });
+  if (sigPad) sigPad.clear();
+  if (sigPadMergee) sigPadMergee.clear();
 }
 
 function clearRoundFields() {
