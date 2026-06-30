@@ -119,16 +119,6 @@ textarea{resize:vertical;min-height:72px}
 </head>
 <body>
 
-<div id="pw-overlay">
-  <div id="pw-box">
-    <h2>Mergee</h2>
-    <p style="font-size:15px;font-weight:600;color:#1a1a2e;margin-bottom:16px">Prototype & Completion</p>
-    <p>Enter password to continue</p>
-    <input id="pw-input" type="password" placeholder="Password" onkeydown="if(event.key==='Enter')checkPw()">
-    <button id="pw-btn" onclick="checkPw()">Enter</button>
-    <div id="pw-err">Incorrect password</div>
-  </div>
-</div>
 
 <div class="page-header">
   <div class="eyebrow">Mergee Atelier</div>
@@ -436,18 +426,6 @@ async function lookupProjectInfo() {
   }
 }
 
-// ── Password ──
-function checkPw() {
-  const v = document.getElementById('pw-input').value;
-  if (PASSWORDS[v]) {
-    document.getElementById('pw-overlay').style.display = 'none';
-    const today = new Date().toISOString().split('T')[0];
-    document.querySelector('[name="round_date"]').value = today;
-    document.getElementById('sign-date').value = today;
-  } else {
-    document.getElementById('pw-err').style.display = 'block';
-  }
-}
 
 // ── Mode ──
 function switchMode(mode) {
@@ -543,6 +521,10 @@ function initSigPad(canvasId, height) {
 }
 
 window.addEventListener('load', () => {
+  const today = new Date().toISOString().split('T')[0];
+  document.querySelector('[name="round_date"]').value = today;
+  document.getElementById('sign-date').value = today;
+
   sigPad = initSigPad('sig-canvas', 160);
   // sigPadMergee จะ init ตอน switchMode('completion') เพราะ section ยัง hidden อยู่
   window.addEventListener('resize', () => {
