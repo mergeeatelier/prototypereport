@@ -678,6 +678,8 @@ function clearRoundFields() {
   document.getElementById('upload-area').classList.remove('has-file');
   document.getElementById('upload-area').querySelector('.upload-icon').textContent = '📷';
   document.getElementById('upload-area').querySelector('.upload-text').textContent = 'คลิกเพื่ออัพโหลดภาพ prototype';
+  const submBy = document.querySelector('[name="submitted_by"]'); if (submBy) submBy.value = '';
+  const signBy = document.querySelector('[name="signed_by"]'); if (signBy) signBy.value = '';
   sigPad.clear();
 }
 
