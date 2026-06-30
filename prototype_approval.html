@@ -214,7 +214,7 @@ textarea{resize:vertical;min-height:72px}
         <div class="grid2" style="margin-bottom:16px">
           <div class="field">
             <label>Date <span class="req">*</span></label>
-            <input type="date" name="round_date">
+            <input type="date" name="round_date" readonly tabindex="-1">
           </div>
           <div class="field">
             <label>Submitted by (Mergee) <span class="req">*</span></label>
@@ -327,7 +327,7 @@ textarea{resize:vertical;min-height:72px}
         </div>
         <div class="field">
           <label>Sign Date</label>
-          <input type="date" name="sign_date" id="sign-date">
+          <input type="date" name="sign_date" id="sign-date" readonly tabindex="-1">
         </div>
       </div>
       <div class="field" style="margin-bottom:20px">
@@ -420,6 +420,8 @@ async function lookupProjectInfo() {
       if (data.company)        document.getElementById('f_company').value         = data.company;
       if (data.contact_person) document.getElementById('f_contact_person').value  = data.contact_person;
       if (data.phone)          document.getElementById('f_phone').value           = data.phone;
+      // อัปเดต badge และ lock round ที่มีข้อมูลแล้ว
+      applyRoundStatus({ 1: data.r1 || '', 2: data.r2 || '', 3: data.r3 || '' });
       statusEl.textContent = '✓ พบข้อมูล';
       statusEl.style.color = '#1a7f5a';
       setTimeout(() => { statusEl.style.display = 'none'; }, 2500);
@@ -469,7 +471,37 @@ function switchMode(mode) {
 }
 
 // ── Round ──
+function applyRoundStatus(status) {
+  [1, 2, 3].forEach(n => {
+    const decision = status[n] || '';
+    const badge = document.getElementById('badge-r' + n);
+    const btn = document.querySelectorAll('.round-tab')[n - 1];
+    if (decision) {
+      badge.textContent = decision;
+      badge.className = 'tab-badge ' + (decision === 'Approved' ? 'badge-approved' : 'badge-revision');
+      btn.disabled = true;
+      btn.style.opacity = '0.55';
+      btn.style.cursor = 'not-allowed';
+      btn.onclick = null;
+      roundStatus[n] = decision;
+    } else {
+      badge.textContent = '—';
+      badge.className = 'tab-badge badge-empty';
+      btn.disabled = false;
+      btn.style.opacity = '';
+      btn.style.cursor = '';
+      btn.onclick = () => selectRound(n);
+    }
+  });
+  // auto-select round แรกที่ยังไม่มีข้อมูล
+  for (let n = 1; n <= 3; n++) {
+    if (!status[n]) { selectRound(n); break; }
+  }
+}
+
 function selectRound(n) {
+  const btn = document.querySelectorAll('.round-tab')[n - 1];
+  if (btn && btn.disabled) return;
   currentRound = n;
   document.getElementById('round-input').value = n;
   document.getElementById('round-section-title').textContent = 'Round ' + n + ' — Prototype Details';
