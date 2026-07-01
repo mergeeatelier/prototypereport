@@ -144,12 +144,25 @@ textarea{resize:vertical;min-height:72px}
       <div class="grid2">
         <div class="field">
           <label>Project ID <span class="req">*</span> <span id="pid-status" style="font-size:11px;font-weight:400;color:#3d5af1;margin-left:6px;display:none"></span></label>
-          <input type="text" name="project_id" id="project_id" placeholder="e.g. PJ2026062701"
-            onblur="lookupProjectInfo()"
-            onkeydown="if(event.key==='Enter'){event.preventDefault();lookupProjectInfo();}">
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" name="project_id" id="project_id" placeholder="e.g. PJ2026062701"
+              onblur="lookupProjectInfo()"
+              onkeydown="if(event.key==='Enter'){event.preventDefault();lookupProjectInfo();}"
+              oninput="if(!this.value.trim()){ ['f_project_name','f_company','f_contact_person','f_phone'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); setProjectFieldsEditable(false); applyRoundStatus({1:'',2:'',3:''}); setNewProjectMode(false); }">
+            <button type="button" id="btn-new-pid" onclick="generateNewProjectId()"
+              style="flex-shrink:0;padding:9px 14px;background:#b5862a;color:#fff;border:none;border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .15s"
+              onmouseover="this.style.background='#9a7023'" onmouseout="this.style.background='#b5862a'">
+              + โปรเจกใหม่
+            </button>
+          </div>
         </div>
-        <div class="field">
-          <label>Project Name</label>
+        <!-- Quotation No. — แสดงเฉพาะตอน New Project mode -->
+        <div class="field" id="qn-field" style="display:none">
+          <label>Quotation No. <span class="req">*</span></label>
+          <input type="text" name="quotation_no" id="f_quotation_no" placeholder="e.g. QT202606270001">
+        </div>
+        <div class="field" id="pname-field">
+          <label>Project Name <span id="req-pname" class="req" style="display:none">*</span></label>
           <input type="text" name="project_name" id="f_project_name" placeholder="— ดึงข้อมูลอัตโนมัติ —" readonly tabindex="-1">
         </div>
         <div class="field">
@@ -157,13 +170,22 @@ textarea{resize:vertical;min-height:72px}
           <input type="text" name="company" id="f_company" placeholder="— ดึงข้อมูลอัตโนมัติ —" readonly tabindex="-1">
         </div>
         <div class="field">
-          <label>Contact Person</label>
+          <label>Contact Person <span id="req-contact" class="req" style="display:none">*</span></label>
           <input type="text" name="contact_person" id="f_contact_person" placeholder="— ดึงข้อมูลอัตโนมัติ —" readonly tabindex="-1">
         </div>
         <div class="field">
-          <label>Phone</label>
+          <label>Phone <span id="req-phone" class="req" style="display:none">*</span></label>
           <input type="text" name="phone" id="f_phone" placeholder="— ดึงข้อมูลอัตโนมัติ —" readonly tabindex="-1">
         </div>
+      </div>
+      <!-- ปุ่มบันทึก Project Info — แสดงเฉพาะตอน New Project mode -->
+      <div id="save-info-row" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid #e8e8e8;text-align:center">
+        <button type="button" onclick="saveProjectInfo()"
+          style="padding:10px 24px;background:#1a1a2e;color:#fff;border:none;border-radius:8px;font-family:'Sarabun',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:background .15s"
+          onmouseover="this.style.background='#2c2c4a'" onmouseout="this.style.background='#1a1a2e'">
+          บันทึก Project Info
+        </button>
+        <span id="save-info-status" style="font-size:13px;margin-left:12px;color:#666"></span>
       </div>
     </div>
   </div>
@@ -391,6 +413,127 @@ let sigPad, sigPadMergee;
   }
 })();
 
+// ── Toggle new project mode (Quotation No. + save button) ──
+function setNewProjectMode(on) {
+  document.getElementById('qn-field').style.display      = on ? '' : 'none';
+  document.getElementById('save-info-row').style.display = on ? '' : 'none';
+  ['req-pname','req-contact','req-phone'].forEach(id => {
+    document.getElementById(id).style.display = on ? 'inline' : 'none';
+  });
+  if (!on) {
+    const qn = document.getElementById('f_quotation_no');
+    if (qn) qn.value = '';
+    document.getElementById('save-info-status').textContent = '';
+  }
+}
+
+// ── Toggle project fields readonly / editable ──
+function setProjectFieldsEditable(editable) {
+  const fields = [
+    { id: 'f_project_name',   ph: editable ? 'ชื่อโปรเจก'          : '— ดึงข้อมูลอัตโนมัติ —' },
+    { id: 'f_company',        ph: editable ? 'ชื่อบริษัท / ลูกค้า'  : '— ดึงข้อมูลอัตโนมัติ —' },
+    { id: 'f_contact_person', ph: editable ? 'ชื่อผู้ติดต่อ'         : '— ดึงข้อมูลอัตโนมัติ —' },
+    { id: 'f_phone',          ph: editable ? 'เบอร์โทร'              : '— ดึงข้อมูลอัตโนมัติ —' },
+  ];
+  fields.forEach(({ id, ph }) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.readOnly  = !editable;
+    el.tabIndex  = editable ? 0 : -1;
+    el.placeholder = ph;
+  });
+  if (!editable) setNewProjectMode(false);
+}
+
+// ── Generate New Project ID (PJ + YYYYMMDD + NN) ──
+async function generateNewProjectId() {
+  const btn = document.getElementById('btn-new-pid');
+  const statusEl = document.getElementById('pid-status');
+  btn.disabled = true;
+  btn.textContent = 'กำลังสร้าง...';
+  statusEl.textContent = 'กำลังสร้าง Project ID...';
+  statusEl.style.color = '#3d5af1';
+  statusEl.style.display = 'inline';
+
+  try {
+    const now = new Date();
+    const dateStr = now.getFullYear().toString()
+      + String(now.getMonth() + 1).padStart(2, '0')
+      + String(now.getDate()).padStart(2, '0');
+
+    const url = APPS_SCRIPT_URL + '?action=nextpid&date=' + dateStr;
+    const resp = await fetch(url, { redirect: 'follow' });
+    const data = await resp.json();
+
+    document.getElementById('project_id').value = data.pid;
+    // ล้างช่อง และปลดล็อกให้กรอกเอง
+    ['f_project_name','f_company','f_contact_person','f_phone']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    setProjectFieldsEditable(true);
+    setNewProjectMode(true);
+    applyRoundStatus({ 1: '', 2: '', 3: '' });
+    statusEl.textContent = '✦ โปรเจกใหม่: ' + data.pid;
+    statusEl.style.color = '#b5862a';
+    setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+  } catch(err) {
+    statusEl.textContent = 'สร้างไม่สำเร็จ — ลองใหม่';
+    statusEl.style.color = '#c0392b';
+  }
+
+  btn.disabled = false;
+  btn.textContent = '+ โปรเจกใหม่';
+}
+
+/// ── Save Project Info (New Project mode) ──
+async function saveProjectInfo() {
+  const projectId    = document.getElementById('project_id').value.trim();
+  const projectName  = document.getElementById('f_project_name').value.trim();
+  const company      = document.getElementById('f_company').value.trim();
+  const contactPerson= document.getElementById('f_contact_person').value.trim();
+  const phone        = document.getElementById('f_phone').value.trim();
+  const quotationNo  = document.getElementById('f_quotation_no').value.trim();
+  const statusEl     = document.getElementById('save-info-status');
+
+  if (!projectId)   { alert('กรุณากรอก Project ID');     return; }
+  if (!quotationNo) { alert('กรุณากรอก Quotation No.');  return; }
+
+  statusEl.textContent = 'กำลังบันทึก...';
+  statusEl.style.color = '#3d5af1';
+
+  try {
+    const resp = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST', redirect: 'follow',
+      body: JSON.stringify({
+        type: 'save_project_info',
+        project_id: projectId, project_name: projectName,
+        company, contact_person: contactPerson, phone,
+        quotation_no: quotationNo
+      })
+    });
+    const result = await resp.json();
+
+    if (result.status === 'duplicate') {
+      statusEl.textContent = '⚠ Project ID นี้มีในชีทแล้ว';
+      statusEl.style.color = '#c0392b';
+      return;
+    }
+    statusEl.textContent = '✓ บันทึกสำเร็จ';
+    statusEl.style.color = '#1a7f5a';
+    // switch to read-only mode (project saved)
+    setProjectFieldsEditable(false);
+    setNewProjectMode(false);
+    // re-populate read-only values
+    document.getElementById('f_project_name').value   = projectName;
+    document.getElementById('f_company').value        = company;
+    document.getElementById('f_contact_person').value = contactPerson;
+    document.getElementById('f_phone').value          = phone;
+    setTimeout(() => { statusEl.textContent = ''; }, 3000);
+  } catch(err) {
+    statusEl.textContent = 'บันทึกไม่สำเร็จ: ' + err.message;
+    statusEl.style.color = '#c0392b';
+  }
+}
+
 // ── Auto-fill: ดึงข้อมูลโปรเจกจาก Google Sheet เมื่อใส่ Project ID ──
 async function lookupProjectInfo() {
   const pid = document.getElementById('project_id');
@@ -410,14 +553,15 @@ async function lookupProjectInfo() {
       if (data.company)        document.getElementById('f_company').value         = data.company;
       if (data.contact_person) document.getElementById('f_contact_person').value  = data.contact_person;
       if (data.phone)          document.getElementById('f_phone').value           = data.phone;
-      // อัปเดต badge และ lock round ที่มีข้อมูลแล้ว
+      if (data.quotation_no)   document.getElementById('f_quotation_no').value    = data.quotation_no;
+      setProjectFieldsEditable(false); // คืนเป็น readonly
       applyRoundStatus({ 1: data.r1 || '', 2: data.r2 || '', 3: data.r3 || '' });
       statusEl.textContent = '✓ พบข้อมูล';
       statusEl.style.color = '#1a7f5a';
       setTimeout(() => { statusEl.style.display = 'none'; }, 2500);
     } else {
-      statusEl.textContent = 'ไม่พบโปรเจกนี้ — กรอกเองได้เลย';
-      statusEl.style.color = '#888';
+      statusEl.textContent = 'ไม่พบ Project ID นี้';
+      statusEl.style.color = '#c0392b';
       setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
     }
   } catch(err) {
@@ -560,6 +704,8 @@ async function submitForm() {
   btn.disabled = true;
   document.getElementById('submit-status').textContent = 'กำลังส่ง...';
 
+  const quotationNo = (document.getElementById('f_quotation_no') || {}).value || '';
+
   let payload = {
     type: 'prototype_approval',
     project_id: projectId,
@@ -567,6 +713,7 @@ async function submitForm() {
     company: company,
     contact_person: contact,
     phone: phone,
+    quotation_no: quotationNo.trim(),
     signed_by: signedBy,
     sign_date: document.getElementById('sign-date').value,
     signature_base64: sigBase64,
