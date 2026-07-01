@@ -93,6 +93,17 @@ textarea{resize:vertical;min-height:72px}
 .sig-clear.confirming{border-color:#c0392b;color:#fff;background:#c0392b;font-weight:700}
 
 .signoff-text{font-size:13px;color:#555;line-height:1.7;padding:14px 16px;background:#f9f9f9;border-radius:8px;border-left:3px solid #3d5af1;margin-bottom:16px}
+
+.delivery-toggle{display:flex;gap:0;background:#f5f5f0;border:1.5px solid #e2e2ef;border-radius:10px;overflow:hidden;margin-bottom:18px}
+.dtoggle{flex:1;padding:11px 16px;border:none;background:none;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:600;color:#888;cursor:pointer;transition:all .15s}
+.dtoggle.active{background:#1a1a2e;color:#fff}
+
+.link-result{background:#f0faf5;border:1.5px solid #1a7f5a;border-radius:10px;padding:16px;margin-bottom:8px;display:none}
+.link-result p{font-size:12px;font-weight:700;color:#1a7f5a;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em}
+.link-box{display:flex;gap:8px;align-items:center}
+.link-box input{flex:1;padding:9px 12px;border:1.5px solid #c3e6d3;border-radius:8px;font-size:13px;color:#1a1a2e;background:#fff;font-family:'Sarabun',sans-serif}
+.btn-copy{flex-shrink:0;padding:9px 16px;background:#1a7f5a;color:#fff;border:none;border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:700;cursor:pointer}
+.btn-copy.copied{background:#b5862a}
 .signoff-text .th{font-size:12px;color:#888;margin-top:4px}
 
 .submit-row{padding:20px 44px;border-top:1px solid #e8e8e8;background:#fff;position:sticky;bottom:0;display:flex;gap:10px;align-items:center}
@@ -149,7 +160,7 @@ textarea{resize:vertical;min-height:72px}
             <input type="text" name="project_id" id="project_id" placeholder="e.g. PJ2026062701"
               onblur="lookupProjectInfo()"
               onkeydown="if(event.key==='Enter'){event.preventDefault();lookupProjectInfo();}"
-              oninput="if(!this.value.trim()){ ['f_project_name','f_company','f_contact_person','f_phone'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); setProjectFieldsEditable(false); applyRoundStatus({1:'',2:'',3:''}); setNewProjectMode(false); }">
+              oninput="clearProjectFields()">
             <button type="button" id="btn-new-pid" onclick="generateNewProjectId()"
               style="flex-shrink:0;padding:9px 14px;background:#b5862a;color:#fff;border:none;border-radius:8px;font-family:'Sarabun',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background .15s"
               onmouseover="this.style.background='#9a7023'" onmouseout="this.style.background='#b5862a'">
@@ -326,9 +337,24 @@ textarea{resize:vertical;min-height:72px}
       <p>ลายเซ็นยืนยัน</p>
     </div>
     <div class="sec-body">
+      <!-- Toggle: หน้าร้าน / Remote -->
+      <div class="delivery-toggle">
+        <button type="button" class="dtoggle active" id="dtoggle-instore" onclick="setDeliveryMode('instore')">หน้าร้าน</button>
+        <button type="button" class="dtoggle" id="dtoggle-remote" onclick="setDeliveryMode('remote')">ส่งสินค้า (Remote)</button>
+      </div>
+
       <div class="signoff-text">
         I agree to the terms above and understand that any changes may incur additional charges.
         <div class="th">ข้าพเจ้ายืนยันตามรายละเอียดข้างต้น และรับทราบว่าการเปลี่ยนแปลงใดๆ อาจมีค่าใช้จ่ายเพิ่มเติม</div>
+      </div>
+
+      <!-- Link Result (Remote mode) -->
+      <div class="link-result" id="link-result">
+        <p>✓ ลิงค์อนุมัติพร้อมแล้ว — คัดลอกแล้วส่งให้ลูกค้าทาง Line / WhatsApp</p>
+        <div class="link-box">
+          <input type="text" id="approval-link" readonly>
+          <button type="button" class="btn-copy" id="btn-copy" onclick="copyLink()">คัดลอก</button>
+        </div>
       </div>
 
       <!-- Client -->
@@ -404,6 +430,7 @@ let currentMode = 'round';
 let currentRound = 1;
 let roundStatus = { 1:'—', 2:'—', 3:'—' };
 let sigPad, sigPadMergee;
+let deliveryMode = 'instore'; // 'instore' | 'remote'
 
 // ── localStorage: จำ Project ID ข้ามการ reload ──
 (function() {
@@ -413,6 +440,19 @@ let sigPad, sigPadMergee;
     if (el) { el.value = saved; }
   }
 })();
+
+// ── Clear project fields เมื่อ Project ID เปลี่ยน ──
+function clearProjectFields() {
+  ['f_project_name','f_company','f_contact_person','f_phone'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  setProjectFieldsEditable(false);
+  applyRoundStatus({ 1: '', 2: '', 3: '' });
+  setNewProjectMode(false);
+  const statusEl = document.getElementById('pid-status');
+  if (statusEl) { statusEl.textContent = ''; statusEl.style.display = 'none'; }
+}
 
 // ── Toggle new project mode (Quotation No. + save button) ──
 function setNewProjectMode(on) {
@@ -572,6 +612,177 @@ async function lookupProjectInfo() {
 }
 
 
+// ── Delivery Mode ──
+function setDeliveryMode(mode) {
+  deliveryMode = mode;
+  document.getElementById('dtoggle-instore').classList.toggle('active', mode === 'instore');
+  document.getElementById('dtoggle-remote').classList.toggle('active', mode === 'remote');
+  // Show/hide client signature area
+  const sigSection = document.querySelector('.field[style*="margin-bottom:20px"]') ||
+    document.getElementById('sig-canvas')?.closest('.field');
+  const signedByField = document.querySelector('[name="signed_by"]')?.closest('.field');
+  const signDateField = document.getElementById('sign-date')?.closest('.field');
+  // toggle visibility
+  [sigSection, signedByField, signDateField].forEach(el => {
+    if (el) el.style.display = mode === 'remote' ? 'none' : '';
+  });
+  // toggle submit button label
+  updateSubmitBtn();
+  // reset link result if switching back
+  if (mode === 'instore') {
+    document.getElementById('link-result').style.display = 'none';
+    document.getElementById('approval-link').value = '';
+  }
+}
+
+// ── Copy Link ──
+function copyLink() {
+  const input = document.getElementById('approval-link');
+  input.select();
+  navigator.clipboard.writeText(input.value).then(() => {
+    const btn = document.getElementById('btn-copy');
+    btn.textContent = '✓ คัดลอกแล้ว';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'คัดลอก'; btn.classList.remove('copied'); }, 2500);
+  }).catch(() => {
+    document.execCommand('copy');
+  });
+}
+
+// ── UUID generator ──
+function genUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+// ── Create Approval Token (Remote mode) ──
+async function createApprovalToken() {
+  const projectId   = document.querySelector('[name="project_id"]').value.trim();
+  const roundDate   = document.querySelector('[name="round_date"]').value;
+  const submittedBy = document.querySelector('[name="submitted_by"]').value.trim();
+  const decision    = document.querySelector('[name="decision"]:checked');
+  const imgFile     = document.getElementById('proto-img').files[0];
+  if (!projectId)   { alert('กรุณากรอก Project ID'); return; }
+  if (!imgFile)     { alert('กรุณาอัพโหลดภาพ prototype'); return; }
+  if (!decision)    { alert('กรุณาเลือก Decision'); return; }
+  if (!submittedBy) { alert('กรุณากรอก Submitted by'); return; }
+
+  // ① สร้าง token + แสดง link ทันที ก่อนทุกอย่าง
+  const token = genUUID();
+  const link  = APPS_SCRIPT_URL + '?page=approve&token=' + encodeURIComponent(token);
+  document.getElementById('approval-link').value = link;
+  document.getElementById('link-result').style.display = 'block';
+
+  // update badge
+  const badge = document.getElementById('badge-r' + currentRound);
+  badge.textContent = decision.value + ' (Remote)';
+  badge.className = 'tab-badge ' + (decision.value === 'Approved' ? 'badge-approved' : 'badge-revision');
+
+  // ② Upload รูป + บันทึก Sheet แบบ background
+  const statusEl = document.getElementById('submit-status');
+  statusEl.textContent = 'กำลังอัพโหลดรูปภาพ...';
+  try {
+    const feedback  = document.querySelector('[name="feedback"]').value.trim();
+    const imgBase64 = await fileToBase64(imgFile);
+    fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      body: JSON.stringify({
+        type:           'create_approval_token',
+        token:          token,
+        project_id:     projectId,
+        round:          currentRound,
+        round_date:     roundDate,
+        submitted_by:   submittedBy,
+        feedback:       feedback,
+        decision:       decision.value,
+        image_base64:   imgBase64,
+        image_filename: imgFile.name,
+      })
+    });
+    statusEl.textContent = '✓ บันทึกเรียบร้อย';
+    setTimeout(() => { statusEl.textContent = ''; }, 3000);
+  } catch(err) {
+    statusEl.textContent = 'หมายเหตุ: อัพโหลดรูปไม่สำเร็จ — ลิงค์ยังใช้ได้';
+  }
+}
+
+// ── Create Completion Token (Remote mode for Completion Report) ──
+async function createCompletionToken() {
+  const projectId      = document.querySelector('[name="project_id"]').value.trim();
+  const mergeeSignedBy = document.querySelector('[name="mergee_signed_by"]').value.trim();
+  if (!projectId)      { alert('กรุณากรอก Project ID'); return; }
+  if (!mergeeSignedBy) { alert('กรุณากรอกชื่อผู้เซ็นฝั่ง Mergee'); return; }
+  if (!sigPadMergee || sigPadMergee.isEmpty()) { alert('กรุณาเซ็นชื่อฝั่ง Mergee ก่อนสร้างลิงค์'); return; }
+
+  // ① แสดง link ทันที
+  const token = genUUID();
+  const link  = APPS_SCRIPT_URL + '?page=approve&token=' + encodeURIComponent(token);
+  document.getElementById('approval-link').value = link;
+  document.getElementById('link-result').style.display = 'block';
+
+  // ② ส่งข้อมูล Completion + ลายเซ็น Mergee แบบ background
+  const statusEl = document.getElementById('submit-status');
+  statusEl.textContent = 'กำลังบันทึกข้อมูล...';
+  try {
+    const projectName = document.querySelector('[name="project_name"]').value.trim();
+    const company     = document.querySelector('[name="company"]').value.trim();
+    const contact     = document.querySelector('[name="contact_person"]').value.trim();
+    const phone       = (document.querySelector('[name="phone"]') || {}).value || '';
+    const quotationNo = (document.getElementById('f_quotation_no') || {}).value || '';
+    fetch(APPS_SCRIPT_URL, {
+      method: 'POST', mode: 'no-cors',
+      body: JSON.stringify({
+        type:                    'create_completion_token',
+        token:                   token,
+        project_id:              projectId,
+        project_name:            projectName,
+        company:                 company,
+        contact_person:          contact,
+        phone:                   phone,
+        quotation_no:            quotationNo.trim(),
+        scope_summary:           document.querySelector('[name="scope_summary"]').value.trim(),
+        deliverables:            document.querySelector('[name="deliverables"]').value.trim(),
+        width:                   document.querySelector('[name="width"]').value.trim(),
+        length:                  document.querySelector('[name="length"]').value.trim(),
+        height:                  document.querySelector('[name="height"]').value.trim(),
+        diameter:                document.querySelector('[name="diameter"]').value.trim(),
+        weight:                  document.querySelector('[name="weight"]').value.trim(),
+        materials:               document.querySelector('[name="materials"]').value.trim(),
+        colors:                  document.querySelector('[name="colors"]').value.trim(),
+        finish:                  document.querySelector('[name="finish"]').value.trim(),
+        standards:               document.querySelector('[name="standards"]').value.trim(),
+        notes:                   document.querySelector('[name="notes"]').value.trim(),
+        mergee_signed_by:        mergeeSignedBy,
+        mergee_signature_base64: sigPadMergee.toDataURL('image/png'),
+      })
+    });
+    statusEl.textContent = '✓ บันทึกเรียบร้อย';
+    setTimeout(() => { statusEl.textContent = ''; }, 3000);
+  } catch(err) {
+    statusEl.textContent = 'หมายเหตุ: อัพโหลดข้อมูลไม่สำเร็จ — ลิงค์ยังใช้ได้';
+  }
+}
+
+function updateSubmitBtn() {
+  const btn = document.getElementById('submit-btn');
+  if (currentMode === 'completion' && deliveryMode === 'remote') {
+    btn.textContent = 'สร้างลิงค์ Completion';
+    btn.className = 'btn-primary green';
+  } else if (currentMode === 'completion') {
+    btn.textContent = 'ส่ง Completion Report & สร้าง PDF รวม';
+    btn.className = 'btn-primary green';
+  } else if (deliveryMode === 'remote') {
+    btn.textContent = 'สร้างลิงค์อนุมัติ';
+    btn.className = 'btn-primary';
+  } else {
+    btn.textContent = 'บันทึก Round ' + currentRound;
+    btn.className = 'btn-primary';
+  }
+}
+
 // ── Mode ──
 function switchMode(mode) {
   currentMode = mode;
@@ -583,14 +794,7 @@ function switchMode(mode) {
   }
   document.getElementById('tab-round').classList.toggle('active', mode === 'round');
   document.getElementById('tab-completion').classList.toggle('active', mode === 'completion');
-  const btn = document.getElementById('submit-btn');
-  if (mode === 'round') {
-    btn.textContent = 'บันทึก Round ' + currentRound;
-    btn.className = 'btn-primary';
-  } else {
-    btn.textContent = 'ส่ง Completion Report & สร้าง PDF รวม';
-    btn.className = 'btn-primary green';
-  }
+  updateSubmitBtn();
 }
 
 // ── Round ──
@@ -629,7 +833,7 @@ function selectRound(n) {
   document.getElementById('round-input').value = n;
   document.getElementById('round-section-title').textContent = 'Round ' + n + ' — Prototype Details';
   document.querySelectorAll('.round-tab').forEach((t, i) => t.classList.toggle('active', i + 1 === n));
-  document.getElementById('submit-btn').textContent = 'บันทึก Round ' + n;
+  updateSubmitBtn();
 }
 
 function updateBadge(el) {
@@ -709,6 +913,12 @@ function clearSigMergee() { clearSigConfirm('mergee'); }
 
 // ── Submit ──
 async function submitForm() {
+  if (currentMode === 'round' && deliveryMode === 'remote') {
+    return createApprovalToken();
+  }
+  if (currentMode === 'completion' && deliveryMode === 'remote') {
+    return createCompletionToken();
+  }
   const projectId = document.querySelector('[name="project_id"]').value.trim();
   const projectName = document.querySelector('[name="project_name"]').value.trim();
   const company = document.querySelector('[name="company"]').value.trim();
