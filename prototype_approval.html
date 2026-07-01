@@ -876,15 +876,22 @@ window.addEventListener('load', () => {
 
   sigPad = initSigPad('sig-canvas', 160);
   // sigPadMergee จะ init ตอน switchMode('completion') เพราะ section ยัง hidden อยู่
+  let _resizeTimer;
   window.addEventListener('resize', () => {
-    [['sig-canvas', sigPad], ['sig-canvas-mergee', sigPadMergee]].forEach(([id, pad]) => {
-      const c = document.getElementById(id);
-      const ratio = Math.max(window.devicePixelRatio || 1, 1);
-      c.width = c.offsetWidth * ratio;
-      c.height = 160 * ratio;
-      c.getContext('2d').scale(ratio, ratio);
-      pad.clear();
-    });
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(() => {
+      [['sig-canvas', sigPad], ['sig-canvas-mergee', sigPadMergee]].forEach(([id, pad]) => {
+        if (!pad) return;
+        const data = pad.toData(); // save stroke data (synchronous)
+        const c = document.getElementById(id);
+        const ratio = Math.max(window.devicePixelRatio || 1, 1);
+        c.width = c.offsetWidth * ratio;
+        c.height = 160 * ratio;
+        c.getContext('2d').scale(ratio, ratio);
+        pad.clear();
+        pad.fromData(data); // restore strokes (synchronous)
+      });
+    }, 150);
   });
 });
 
