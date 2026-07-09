@@ -49,6 +49,7 @@ body{font-family:'Sarabun',sans-serif;background:#f5f5f0;color:#1a1a2e;font-size
 .span2{grid-column:span 2}
 
 .field{display:flex;flex-direction:column;gap:5px}
+.color-swatch-row div{width:26px;height:26px;border-radius:6px;border:1.5px solid #ddd;flex-shrink:0}
 .field label{font-size:12px;font-weight:600;color:#666;letter-spacing:.04em;text-transform:uppercase}
 .field label .req{color:#c0392b;margin-left:2px}
 input[type=text],input[type=date],select,textarea{
@@ -317,7 +318,13 @@ textarea{resize:vertical;min-height:72px}
         </div>
         <div class="grid2" style="margin-bottom:14px">
           <div class="field"><label>Materials</label><input type="text" name="materials" placeholder="วัสดุที่ใช้"></div>
-          <div class="field"><label>Color(s)</label><input type="text" name="colors" placeholder="สีที่ใช้"></div>
+          <div class="field">
+            <label>Color(s)</label>
+            <div style="display:flex;align-items:center;gap:8px">
+              <input type="text" name="colors" placeholder="เช่น #CC3399 หรือ Pantone 123C หรือ ชื่อ/รหัสวัสดุ" oninput="updateColorSwatch(this)" style="flex:1">
+              <div class="color-swatch-row" id="colors-swatch" style="display:none;gap:5px;flex-shrink:0"></div>
+            </div>
+          </div>
           <div class="field"><label>Finish</label><input type="text" name="finish" placeholder="ลักษณะ finish"></div>
           <div class="field"><label>Standards / Certification</label><input type="text" name="standards" placeholder="—"></div>
         </div>
@@ -442,6 +449,21 @@ let deliveryMode = 'instore'; // 'instore' | 'remote'
 })();
 
 // ── Clear project fields เมื่อ Project ID เปลี่ยน ──
+function updateColorSwatch(inputEl) {
+  const row = inputEl.parentElement.querySelector('.color-swatch-row');
+  if (!row) return;
+  const matches = inputEl.value.match(/#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/g) || [];
+  if (matches.length > 0) {
+    row.innerHTML = matches.map(hex =>
+      '<div title="' + hex + '" style="background:' + hex + '"></div>'
+    ).join('');
+    row.style.display = 'flex';
+  } else {
+    row.innerHTML = '';
+    row.style.display = 'none';
+  }
+}
+
 function clearProjectFields() {
   ['f_project_name','f_company','f_contact_person','f_phone'].forEach(id => {
     const el = document.getElementById(id);
@@ -1050,6 +1072,8 @@ function clearCompletionFields() {
   ['scope_summary','deliverables','width','length','height','diameter','weight',
    'materials','colors','finish','standards','notes','signed_by','mergee_signed_by']
     .forEach(n => { const el = document.querySelector('[name="'+n+'"]'); if (el) el.value = ''; });
+  const swatchRow = document.getElementById('colors-swatch');
+  if (swatchRow) { swatchRow.innerHTML = ''; swatchRow.style.display = 'none'; }
   if (sigPad) sigPad.clear();
   if (sigPadMergee) sigPadMergee.clear();
 }
