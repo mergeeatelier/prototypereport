@@ -381,7 +381,7 @@ textarea{resize:vertical;min-height:72px}
           <canvas id="sig-canvas"></canvas>
           <div class="sig-toolbar">
             <span>เซ็นชื่อในช่องนี้</span>
-            <button type="button" class="sig-clear" id="btn-clear-client" onclick="clearSig()">ล้าง</button>
+            <button type="button" class="sig-clear" id="btn-clear-client" onclick="clearSig('client')">ล้าง</button>
           </div>
         </div>
       </div>
@@ -402,7 +402,7 @@ textarea{resize:vertical;min-height:72px}
             <canvas id="sig-canvas-mergee"></canvas>
             <div class="sig-toolbar">
               <span>เซ็นชื่อในช่องนี้</span>
-              <button type="button" class="sig-clear" id="btn-clear-mergee" onclick="clearSig()">ล้าง</button>
+              <button type="button" class="sig-clear" id="btn-clear-mergee" onclick="clearSig('mergee')">ล้าง</button>
             </div>
           </div>
         </div>
@@ -916,11 +916,10 @@ window.addEventListener('load', () => {
   });
 });
 
-function clearSigConfirm(who) {
-  if (who === 'client') sigPad.clear(); else sigPadMergee.clear();
+function clearSig(which) {
+  if (which === 'client') { if (sigPad) sigPad.clear(); }
+  else if (which === 'mergee') { if (sigPadMergee) sigPadMergee.clear(); }
 }
-function clearSig() { clearSigConfirm('client'); }
-function clearSigMergee() { clearSigConfirm('mergee'); }
 
 // ── Submit ──
 async function submitForm() {
